@@ -216,12 +216,8 @@ class MorphTester {
 
    UpdateRefData() {
       let bb = this.BoundingBox();
-
       let clip = this.ctx.getImageData(bb.l, bb.t, bb.w, bb.h);
-
       let oldData = new Uint8ClampedArray(bb.w * bb.h * 4);
-
-      console.log("clip", clip);
 
       for (let y=0; y<bb.h; y++) {
          for (let x=0; x<bb.w; x++) {
