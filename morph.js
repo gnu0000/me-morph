@@ -24,6 +24,8 @@ class MorphTester {
       this.isDragging = false;
       this.debugMode  = false;
       this.history = {head:0, tail:0, curr:0, idx:0};
+      this.ratio_CZ_C = 4;
+      this.ratio_C_D  = 3;
 
       this.$canvas
          .mousemove((e) => this.MouseMove(e))
@@ -61,7 +63,7 @@ class MorphTester {
 
    MouseDown(event) {
       this.isDragging = true;
-      this.ptC = this.ptA = this.MousePoint(event);
+      this.pointC = this.pointZ = this.MousePoint(event);
       this.CalcMetrics();
       this.Draw();
    }
@@ -107,75 +109,90 @@ class MorphTester {
    //------------------calc----------------------------
 
    CalcMetrics() {
-      let a = this.ptA = this.current;
-      let c = this.ptC;
-      this.l1 = this.Distance(c, a);
-      this.l2 = this.l1 == 0 ? 1 : this.l1/4;
-      let l2 = this.l2;
-      this.t1 = Math.atan2(c.y - a.y, a.x - c.x);
-      this.t2 = Math.PI/2 - this.t1;
-      let t2 = this.t2;
-      this.ptB = this.Pt(c.x - l2 * Math.sin(t2), c.y + l2 * Math.cos(t2));
-      this.ptD = this.Pt(c.x - l2 * Math.cos(t2), c.y - l2 * Math.sin(t2));
-      this.ptE = this.Pt(c.x + l2 * Math.cos(t2), c.y + l2 * Math.sin(t2));
-      this.tMax = this.Angle(a, c, this.ptD);
+      let pZ = this.pointZ = this.current;
+      let pC = this.pointC;
+      this.lenCZ = this.Distance(pC, pZ);
+      let radC = this.radC = this.lenCZ == 0 ? 1 : this.lenCZ/this.ratio_CZ_C;
+      this.theta1 = Math.atan2(pC.y - pZ.y, pZ.x - pC.x);
+      let theta2  = this.theta2 = Math.PI/2 - this.theta1;
+      this.pointA = this.Point(pC.x - radC * Math.cos(theta2), pC.y - radC * Math.sin(theta2));
+      this.pointB = this.Point(pC.x + radC * Math.cos(theta2), pC.y + radC * Math.sin(theta2));
+      this.theta3   = this.Angle(pZ, pC, this.pointA);
+
+      let radD = this.radD = radC/this.ratio_C_D;
+      this.pointD = this.Move(this.pointZ, -this.theta1+Math.PI, this.lenCZ/this.ratio_C_D);
+      this.pointE = this.Point(this.pointD.x - radD * Math.cos(theta2), this.pointD.y - radD * Math.sin(theta2));
+      this.pointF = this.Point(this.pointD.x + radD * Math.cos(theta2), this.pointD.y + radD * Math.sin(theta2));
+      this.lenDZ  = this.Distance(this.pointD, pZ);
+
       this.LogMetrics();
    }
 
-   CalcDragPixel(z) {
-      this.isInside = this.IsInside(z);
+   CalcDragPixel(pP) {
+      this.isInside = this.IsInside(pP);
       if (!this.isInside)
          return $("#log2").text("Not Inside");
 
-      let a = this.ptA;
-      let d = this.ptD;
-      let e = this.ptE;
-      this.ptR = this.Intersection(z, -this.t1, this.ptC, this.t2);
+      let pZ = this.pointZ;
+      let pA = this.pointA;
+      let pB = this.pointB;
+      this.pointQ = this.Intersection(pP, -this.theta1, this.pointC, this.theta2);
 
-      let ptZ = this.Distance(z, d) < this.Distance(z, e) ? d : e;
-      this.t3  = Math.atan2(ptZ.y - a.y, ptZ.x - a.x);
+      let pTmp = this.Distance(pP, pA) < this.Distance(pP, pB) ? pA : pB;
+      let thetaZ = Math.atan2(pTmp.y - pZ.y, pTmp.x - pZ.x);
+      let lCQ = this.Distance(this.pointC, this.pointQ);
       
-      this.ptQ = this.Intersection(z, -this.t1, this.ptA, this.t3);
+      if (lCQ < this.radD) {
+         this.pointT = this.Intersection(pP, -this.theta1, this.pointD, this.theta2);
+         let lDT = this.Distance(this.pointD, this.pointT);
+         let lTU = Math.sqrt(this.radD*this.radD - lDT*lDT);
+         this.pointU = this.Move(this.pointT, -this.theta1, lTU);
+      } else {
+         this.pointU = this.Intersection(pP, -this.theta1, this.pointZ, thetaZ);
+      }
 
-      let dr = this.Distance(this.ptC, this.ptR);
-      let l3 = Math.sqrt(this.l2*this.l2 - dr*dr);
-      this.ptS = this.Move(this.ptR, -this.t1 + Math.PI, l3);
-      let sq = this.Distance(this.ptS, this.ptQ);
-      let sz = this.Distance(this.ptS, z);
-      let sr = this.Distance(this.ptS, this.ptR);
-      this.ptT = this.Move(this.ptR, -this.t1 + Math.PI, sr - sz*sr/sq);
+      let lQR = Math.sqrt(this.radC*this.radC - lCQ*lCQ);
+      this.pointR = this.Move(this.pointQ, -this.theta1 + Math.PI, lQR);
+      let lRU = this.Distance(this.pointR, this.pointU);
+      let lPR = this.Distance(this.pointR, pP);
+      let lQR2 = this.Distance(this.pointR, this.pointQ);
 
-      //this.LogTest();
-      return this.ptT;
+      this.pointS = this.Move(this.pointQ, -this.theta1 + Math.PI, lQR - lPR * lQR2 / lRU);
+      return this.pointS;
    }
 
-   IsInside(z, checkBoundingBox = false) {
-      if (!this.ptC) return false;
-      let a = this.ptA;
-      let c = this.ptC;
-      let l2 = this.l2;
-      let t = this.Angle(a, c, z);
-      if (Math.abs(t) > Math.abs(this.tMax)) return false;
-      if (checkBoundingBox && z.x < Math.min(c.x - l2, a.x)) return false;
-      if (checkBoundingBox && z.x > Math.max(c.x + l2, a.x)) return false;
-      if (checkBoundingBox && z.y < Math.min(c.y - l2, a.y)) return false;
-      if (checkBoundingBox && z.y > Math.max(c.y + l2, a.y)) return false;
-      let lza = this.Distance(z, a);
-      if (lza <= this.l1) return true;
-      let lzc = this.Distance(z, c);
-      return (lzc <= this.l2);
+   IsInside(pP, checkBoundingBox = false) {
+      if (!this.pointC) return false;
+      let pZ = this.pointZ;
+      let pC = this.pointC;
+      let pD = this.pointD;
+      let radC = this.radC;
+      let radD = this.radD;
+      let t = this.Angle(pZ, pC, pP);
+      if (Math.abs(t) > Math.abs(this.theta3)) return false;
+      if (checkBoundingBox && pP.x < Math.min(pC.x - radC, pZ.x)) return false;
+      if (checkBoundingBox && pP.x > Math.max(pC.x + radC, pZ.x)) return false;
+      if (checkBoundingBox && pP.y < Math.min(pC.y - radC, pZ.y)) return false;
+      if (checkBoundingBox && pP.y > Math.max(pC.y + radC, pZ.y)) return false;
+
+      let lPZ = this.Distance(pP, pZ);
+      if (lPZ > this.lenCZ)
+         return (this.Distance(pP, pC) <= this.radC);
+      if (lPZ < this.lenDZ)
+         return (this.Distance(pP, pD) <= this.radD);
+      return true;
    }
 
    BoundingBox() {
-      let a  = this.ptA;
-      let c  = this.ptC;
-      let l2 = this.l2;
-      let l = Math.round(Math.min(c.x - l2, a.x));
-      let r = Math.round(Math.max(c.x + l2, a.x));
-      let t = Math.round(Math.min(c.y - l2, a.y));
-      let b = Math.round(Math.max(c.y + l2, a.y));
-      let w = r - l; //+1?
-      let h = b - t; //+1?
+      let pZ  = this.pointZ;
+      let pC  = this.pointC;
+      let radC = this.radC;
+      let l = Math.round(Math.min(pC.x - radC, pZ.x));
+      let r = Math.round(Math.max(pC.x + radC, pZ.x));
+      let t = Math.round(Math.min(pC.y - radC, pZ.y));
+      let b = Math.round(Math.max(pC.y + radC, pZ.y));
+      let w = r - l + 1;
+      let h = b - t + 1;
       return {l, r, t, b, w, h};
    }
 
@@ -216,8 +233,12 @@ class MorphTester {
 
    UpdateRefData() {
       let bb = this.BoundingBox();
+
       let clip = this.ctx.getImageData(bb.l, bb.t, bb.w, bb.h);
+
       let oldData = new Uint8ClampedArray(bb.w * bb.h * 4);
+
+      console.log("clip", clip);
 
       for (let y=0; y<bb.h; y++) {
          for (let x=0; x<bb.w; x++) {
@@ -249,31 +270,41 @@ class MorphTester {
    }
 
    DrawMetrics() {
-      if (this.ptC) {
-         this.DrawPoint(this.ptA, "blue");
-         this.DrawPoint(this.ptC, "blue");
-         this.DrawPoint(this.ptB, "lightblue");
-         this.DrawPoint(this.ptD, "lightblue");
-         this.DrawPoint(this.ptE, "lightblue");
-         this.DrawLine(this.ptC, this.ptA, 1, "blue");
-         this.DrawLine(this.ptC, this.ptB, 1, "lightblue");
-         this.DrawLine(this.ptC, this.ptD, 1, "lightblue");
-         this.DrawLine(this.ptC, this.ptE, 1, "lightblue");
-         this.DrawLine(this.ptA, this.ptD, 1, "lightblue");
-         this.DrawLine(this.ptA, this.ptE, 1, "lightblue");
-         this.DrawCircle(this.ptC, 1, this.l2, "lightblue");
+      if (this.pointC) {
+         this.DrawPoint(this.pointZ, "blue");
+         this.DrawPoint(this.pointC, "blue");
+//         this.DrawPoint(this.ptB, "lightblue");
+         this.DrawPoint(this.pointA, "lightblue");
+         this.DrawPoint(this.pointB, "lightblue");
+         this.DrawLine(this.pointC, this.pointZ, 1, "blue");
+//         this.DrawLine(this.pointC, this.ptB, 1, "lightblue");
+         this.DrawLine(this.pointC, this.pointA, 1, "lightblue");
+         this.DrawLine(this.pointC, this.pointB, 1, "lightblue");
+         this.DrawLine(this.pointZ, this.pointA, 1, "lightblue");
+         this.DrawLine(this.pointZ, this.pointB, 1, "lightblue");
+         this.DrawCircle(this.pointC, 1, this.radC, "lightblue");
+
+////
+         this.DrawPoint(this.pointD, "blue");
+         this.DrawPoint(this.pointE, "lightblue");
+         this.DrawPoint(this.pointF, "lightblue");
+         this.DrawCircle(this.pointD, 1, this.radC/4, "lightblue");
+////
       }
    }
 
    DrawTest() {
       if (!this.isInside) return;
-      //this.DrawLine(this.current, this.Move(this.current, -this.t1, 50), 1, "red");
-      this.DrawLine(this.ptQ, this.ptR, 1, "red");
-      this.DrawLine(this.ptS, this.ptR, 1, "lightred");
-      this.DrawPoint(this.ptR, "red");
-      this.DrawPoint(this.ptQ, "red");
-      this.DrawPoint(this.ptS, "red");
-      this.DrawPoint(this.ptT, "lightgreen");
+      //this.DrawLine(this.current, this.Move(this.current, -this.theta1, 50), 1, "red");
+      this.DrawLine(this.pointU, this.pointQ, 1, "red");
+      this.DrawLine(this.pointR, this.pointQ, 1, "lightred");
+      this.DrawPoint(this.pointQ, "red");
+      this.DrawPoint(this.pointU, "red");
+      this.DrawPoint(this.pointR, "red");
+      this.DrawPoint(this.pointS, "lightgreen");
+////
+      this.DrawPoint(this.pointT, "red");
+
    }
 
    DrawPoint(point, color) {
@@ -393,34 +424,34 @@ class MorphTester {
       return {x: Math.round(point.x + len * Math.cos(t)), y: Math.round(point.y + len * Math.sin(t))};
    }
 
-   Intersection(p1, t1, p2, t2) {
+   Intersection(p1, theta1, p2, theta2) {
       let pi = Math.PI;
       let hpi = pi/2;
 
-      if (((t1 % pi) + pi) % pi == hpi) { // vertical line at x = x0
-         return [p1.x, Math.tan(t2) * (p1.x-p2.x) + p2.y];
+      if (((theta1 % pi) + pi) % pi == hpi) { // vertical line at x = x0
+         return [p1.x, Math.tan(theta2) * (p1.x-p2.x) + p2.y];
       }
-      else if (((t2 % pi) + pi) % pi == hpi) { // vertical line at x = p1.x
-         return [p2.x, Math.tan(t1) * (p2.x-p1.x) + p1.y];
+      else if (((theta2 % pi) + pi) % pi == hpi) { // vertical line at x = p1.x
+         return [p2.x, Math.tan(theta1) * (p2.x-p1.x) + p1.y];
       }
-      let m0 = Math.tan(t1); // Line 0: y = m0 (x - p1.x) + p1.y
-      let m1 = Math.tan(t2); // Line 1: y = m1 (x - p2.x) + p2.y
+      let m0 = Math.tan(theta1); // Line 0: y = m0 (x - p1.x) + p1.y
+      let m1 = Math.tan(theta2); // Line 1: y = m1 (x - p2.x) + p2.y
       let x = ((m0 * p1.x - m1 * p2.x) - (p1.y - p2.y)) / (m0 - m1);
       return {x, y: m0 * (x - p1.x) + p1.y};
    }
 
-   PtStr(p) {
+   PointStr(p) {
       let x = Math.round(p.x * 100) / 100.0;
       let y = Math.round(p.y * 100) / 100.0;
       return `${x},${y}`;
    }
 
-   NStr(l) {
+   NumStr(l) {
       let ls = Math.round(l * 1000) / 1000.0;
       return `${ls}`;
    }
 
-   Pt(x,y) {
+   Point(x,y) {
       return {x, y};
    }
 
@@ -432,28 +463,30 @@ class MorphTester {
 
    LogMetrics() {
       let msg = 
-         `ptC: ${this.PtStr(this.ptC) }\n` +
-         `ptA: ${this.PtStr(this.ptA) }\n` +
-         `l1:  ${this.NStr (this.l1)  }\n` +
-         `l2:  ${this.NStr (this.l2)  }\n` +
-         `t1:  ${this.NStr (this.t1)  }\n` +
-         `t2:  ${this.NStr (this.t2)  }\n` +
-         `ptB: ${this.PtStr(this.ptB) }\n` +
-         `ptD: ${this.PtStr(this.ptD) }\n` +
-         `ptE: ${this.PtStr(this.ptE) }\n` +
-         `tMax:${this.NStr (this.tMax)}\n` ;
-
+         `lenCZ:  ${this.NumStr (this.lenCZ)  }\n` +
+         `pointA: ${this.PointStr(this.pointA)}\n` +
+         `pointB: ${this.PointStr(this.pointB)}\n` +
+         `pointC: ${this.PointStr(this.pointC)}\n` +
+         `pointD: ${this.PointStr(this.pointD)}\n` +
+         `pointE: ${this.PointStr(this.pointE)}\n` +
+         `pointF: ${this.PointStr(this.pointF)}\n` +
+         `pointZ: ${this.PointStr(this.pointZ)}\n` +
+         `radC:   ${this.NumStr (this.radC)   }\n` +
+         `radD:   ${this.NumStr (this.radC)   }\n` +
+         `theta1: ${this.NumStr (this.theta1) }\n` +
+         `theta2: ${this.NumStr (this.theta2) }\n` +
+         `theta3:${this.NumStr (this.theta3)  }\n` ;
       $("#log").text(msg);
    }
 
    LogTest() {
-      if (!this.ptQ) return;
+      if (!this.pointU) return;
       let msg = 
-         `ptQ: ${this.PtStr(this.ptQ) }\n` +
-         `ptR: ${this.PtStr(this.ptR) }\n` +
-         `ptS: ${this.PtStr(this.ptS) }\n` +
-         `ptT: ${this.PtStr(this.ptT) }\n` +
-         `t3:  ${this.NStr (this.t3)  }\n` ;
+         `pointU: ${this.PointStr(this.pointU)}\n` +
+         `pointQ: ${this.PointStr(this.pointQ)}\n` +
+         `pointR: ${this.PointStr(this.pointR)}\n` +
+         `pointS: ${this.PointStr(this.pointS)}\n` +
+         `theta3:  ${this.NumStr (this.theta3)}\n` ;
       $("#log2").text(msg);
    }
 }
