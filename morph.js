@@ -31,11 +31,12 @@ class MorphTester {
          .mousemove((e) => this.MouseMove(e))
          .mousedown((e) => this.MouseDown(e))
          .mouseup  ((e) => this.MouseUp(e));
-      this.$fileInput    .on("change", (e) => this.FileChange(e));
-      $(this.fileReader ).on("load",   (e) => this.FileLoaded(e));
-      $(this.img        ).on("load",   (e) => this.ImageLoaded(e));
-      $(".debugmode"    ).on("change", (e) => this.SetDebugMode(e));
-      $(window          ).on("keydown",(e) => this.KeyDown(e));
+      this.$fileInput         .on("change", (e) => this.FileChange(e));
+      $(this.fileReader      ).on("load",   (e) => this.FileLoaded(e));
+      $(this.img             ).on("load",   (e) => this.ImageLoaded(e));
+      $("input[type='range']").on("change", (e) => this.SliderChange(e));
+      $(".debugmode"         ).on("change", (e) => this.SetDebugMode(e));
+      $(window               ).on("keydown",(e) => this.KeyDown(e));
 
       this.LoadImage();
    }
@@ -100,7 +101,18 @@ class MorphTester {
       this.refData = this.ctx.getImageData(0, 0, this.img.width, this.img.height);
    }
 
-   SetDebugMode(event){
+   SliderChange(event) {
+      let rC = $("#radiusC").val();
+      $("#radiusC").closest("div").find("span").text(`[${rC}]`);
+
+      let rD = $("#radiusD").val();
+      $("#radiusD").closest("div").find("span").text(`[${rD}]`);
+
+      this.ratio_CZ_C = 100 / rC;
+      this.ratio_C_D  = 100 / rD;
+   }
+
+   SetDebugMode(event) {
       this.debugMode = $(event.currentTarget).is(":checked");
       console.log("debug mode is: ", this.debugMode)
       this.DrawImage();
@@ -145,19 +157,18 @@ class MorphTester {
       if (lCQ < this.radD) {
          this.pointT = this.Intersection(pP, -this.theta1, this.pointD, this.theta2);
          let lDT = this.Distance(this.pointD, this.pointT);
-         let lTU = Math.sqrt(this.radD*this.radD - lDT*lDT);
+         let lTU = lDT >= this.radD ? 0 : Math.sqrt(this.radD*this.radD - lDT*lDT);
          this.pointU = this.Move(this.pointT, -this.theta1, lTU);
       } else {
          this.pointU = this.Intersection(pP, -this.theta1, this.pointZ, thetaZ);
       }
-
-      let lQR = Math.sqrt(this.radC*this.radC - lCQ*lCQ);
+      let lQR = lCQ >= this.radC ? 0 : Math.sqrt(this.radC*this.radC - lCQ*lCQ);
       this.pointR = this.Move(this.pointQ, -this.theta1 + Math.PI, lQR);
       let lRU = this.Distance(this.pointR, this.pointU);
       let lPR = this.Distance(this.pointR, pP);
       let lQR2 = this.Distance(this.pointR, this.pointQ);
-
       this.pointS = this.Move(this.pointQ, -this.theta1 + Math.PI, lQR - lPR * lQR2 / lRU);
+
       return this.pointS;
    }
 
@@ -238,8 +249,6 @@ class MorphTester {
 
       let oldData = new Uint8ClampedArray(bb.w * bb.h * 4);
 
-      console.log("clip", clip);
-
       for (let y=0; y<bb.h; y++) {
          for (let x=0; x<bb.w; x++) {
             for (let i=0; i<4; i++) {
@@ -270,41 +279,34 @@ class MorphTester {
    }
 
    DrawMetrics() {
-      if (this.pointC) {
-         this.DrawPoint(this.pointZ, "blue");
-         this.DrawPoint(this.pointC, "blue");
-//         this.DrawPoint(this.ptB, "lightblue");
-         this.DrawPoint(this.pointA, "lightblue");
-         this.DrawPoint(this.pointB, "lightblue");
-         this.DrawLine(this.pointC, this.pointZ, 1, "blue");
-//         this.DrawLine(this.pointC, this.ptB, 1, "lightblue");
-         this.DrawLine(this.pointC, this.pointA, 1, "lightblue");
-         this.DrawLine(this.pointC, this.pointB, 1, "lightblue");
-         this.DrawLine(this.pointZ, this.pointA, 1, "lightblue");
-         this.DrawLine(this.pointZ, this.pointB, 1, "lightblue");
-         this.DrawCircle(this.pointC, 1, this.radC, "lightblue");
+      if (!this.pointC) return;
 
-////
-         this.DrawPoint(this.pointD, "blue");
-         this.DrawPoint(this.pointE, "lightblue");
-         this.DrawPoint(this.pointF, "lightblue");
-         this.DrawCircle(this.pointD, 1, this.radC/4, "lightblue");
-////
-      }
+      this.DrawPoint(this.pointZ, "blue");
+      this.DrawPoint(this.pointC, "blue");
+      this.DrawPoint(this.pointA, "lightblue");
+      this.DrawPoint(this.pointB, "lightblue");
+      this.DrawLine(this.pointC, this.pointZ, 1, "blue");
+      this.DrawLine(this.pointC, this.pointA, 1, "lightblue");
+      this.DrawLine(this.pointC, this.pointB, 1, "lightblue");
+      this.DrawLine(this.pointZ, this.pointA, 1, "lightblue");
+      this.DrawLine(this.pointZ, this.pointB, 1, "lightblue");
+      this.DrawCircle(this.pointC, 1, this.radC, "lightblue");
+
+      this.DrawPoint(this.pointD, "blue");
+      this.DrawPoint(this.pointE, "lightblue");
+      this.DrawPoint(this.pointF, "lightblue");
+      this.DrawCircle(this.pointD, 1, this.radD, "lightblue");
    }
 
    DrawTest() {
       if (!this.isInside) return;
-      //this.DrawLine(this.current, this.Move(this.current, -this.theta1, 50), 1, "red");
       this.DrawLine(this.pointU, this.pointQ, 1, "red");
       this.DrawLine(this.pointR, this.pointQ, 1, "lightred");
       this.DrawPoint(this.pointQ, "red");
       this.DrawPoint(this.pointU, "red");
       this.DrawPoint(this.pointR, "red");
-      this.DrawPoint(this.pointS, "lightgreen");
-////
       this.DrawPoint(this.pointT, "red");
-
+      this.DrawPoint(this.pointS, "lightgreen");
    }
 
    DrawPoint(point, color) {
@@ -335,9 +337,8 @@ class MorphTester {
 
    PushHistory(oldData,newData,bb) {
       let node = {oldData, newData, bb, next:0, prev:this.history.curr, idx:`[${this.history.idx++}]`};
-      if (!this.history.head) {
+      if (!this.history.curr) {
          this.history.head = this.history.tail = this.history.curr = node;
-         console.log("history start");
          this.LogHistory();
          return;
       }
@@ -377,22 +378,21 @@ class MorphTester {
    }
 
    LogHistory() {
-      console.log(`history h:${this.history.head.idx}, c:${this.history.curr.idx}`);
-      
+      if (!this.debugMode) return;
+
       let str = "";
       for (let p = this.history.tail; p; p = p.next) {
          if (str != "") str += " --> ";
          str += p.idx;
          if (p === this.history.curr) str += "(c)";
       }
-      console.log("history", str);
    }
 
    //------------------util----------------------------
 
    LoadImage() {
       this.img.crossOrigin = 'anonymous';
-      this.img.src = "volt.jpg";
+      this.img.src = "ovalface.jpg";
    }
 
    LoadImageFile() {
@@ -407,16 +407,16 @@ class MorphTester {
    }
 
    Distance(point1, point2) {
-      var dx = point1.x - point2.x;
-      var dy = point1.y - point2.y;
+      let dx = point1.x - point2.x;
+      let dy = point1.y - point2.y;
       return Math.sqrt(dx*dx + dy*dy);
    }
 
    // current, start, point
    Angle(p1, p2, p3) {
-      var d12 = this.Distance(p1,p2);
-      var d13 = this.Distance(p1,p3);
-      var d23 = this.Distance(p2,p3);
+      let d12 = this.Distance(p1,p2);
+      let d13 = this.Distance(p1,p3);
+      let d23 = this.Distance(p2,p3);
       return Math.acos((d12*d12 + d13*d13 - d23*d23)/(2* d12 * d13));
    }
 
@@ -429,10 +429,10 @@ class MorphTester {
       let hpi = pi/2;
 
       if (((theta1 % pi) + pi) % pi == hpi) { // vertical line at x = x0
-         return [p1.x, Math.tan(theta2) * (p1.x-p2.x) + p2.y];
+         return {x: p1.x, y: Math.tan(theta2) * (p1.x-p2.x) + p2.y};
       }
       else if (((theta2 % pi) + pi) % pi == hpi) { // vertical line at x = p1.x
-         return [p2.x, Math.tan(theta1) * (p2.x-p1.x) + p1.y];
+         return {x: p2.x, y: Math.tan(theta1) * (p2.x-p1.x) + p1.y};
       }
       let m0 = Math.tan(theta1); // Line 0: y = m0 (x - p1.x) + p1.y
       let m1 = Math.tan(theta2); // Line 1: y = m1 (x - p2.x) + p2.y
