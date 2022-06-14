@@ -1,6 +1,12 @@
 "use strict";
 
+//
 // morph.js
+//
+// This version uses worker threads. It turns out that the message overhead
+// negates any speed advantage so I stopped working on this. I could make worker 
+// call generate multiple rows of data at a time to cut down on the overhead, 
+// but it seems like it's not worth it.
 //
 // This loads an image into a canvas and lets you drag pixels around using 
 // the mouse (click-drag). 
@@ -8,6 +14,8 @@
 //    loading an initial image
 //    loading an image from a file input
 //    a simple undo/redo design pattern
+//
+// look at plan.jpg to see what the point angle and length attributes mean
 //
 // todo: implement alternate drag algorithms
 //
@@ -24,9 +32,14 @@ class MorphTester {
       this.isInside   = false;
       this.isDragging = false;
       this.debugMode  = false;
-      this.history = {head:0, tail:0, curr:0, idx:0};
+      this.history    = {head:0, tail:0, curr:0, idx:0};
       this.ratio_CZ_C = 4;
       this.ratio_C_D  = 3;
+      this.workers    = [];
+      this.workerCt   = 8;
+      this.nextRow    = 0;
+      this.useWorkers = 1;
+      this.rendering  = false;
 
       this.$canvas
          .mousemove((e) => this.MouseMove(e))
@@ -39,6 +52,7 @@ class MorphTester {
       $(".debugmode"         ).on("change", (e) => this.SetDebugMode(e));
       $(window               ).on("keydown",(e) => this.KeyDown(e));
 
+      this.SetupWorkers();
       this.LoadImage();
    }
 
@@ -49,6 +63,7 @@ class MorphTester {
       $("#loc").text(`${this.current.x},${this.current.y}`);
 
       if (this.isDragging) {
+         if (this.rendering) return;
          this.CalcMetrics();
          this.Draw();
          if (this.debugMode) this.DrawMetrics();
@@ -85,6 +100,11 @@ class MorphTester {
          this.RollBack();
       if (e.code == 'KeyZ' && e.ctrlKey && e.shiftKey || e.code == 'KeyY' && e.ctrlKey)
          this.RollForward();
+      if (e.code == 'KeyT')
+         this.Test();
+      if (e.code == 'KeyU')
+         this.TestU();
+
    }
 
    FileChange() {
@@ -171,16 +191,12 @@ class MorphTester {
       return this.pointS;
    }
 
-   IsInside(pP, checkBoundingBox = false) {
+   IsInside(pP) {
       if (!this.pointC) return false;
 
       let {pointZ: pZ, pointC: pC, pointD: pD, radC, radD} = this;
       let t = this.Angle(pZ, pC, pP);
       if (Math.abs(t) > Math.abs(this.theta3)) return false;
-      if (checkBoundingBox && pP.x < Math.min(pC.x - radC, pZ.x)) return false;
-      if (checkBoundingBox && pP.x > Math.max(pC.x + radC, pZ.x)) return false;
-      if (checkBoundingBox && pP.y < Math.min(pC.y - radC, pZ.y)) return false;
-      if (checkBoundingBox && pP.y > Math.max(pC.y + radC, pZ.y)) return false;
 
       let lPZ = this.Distance(pP, pZ);
       if (lPZ > this.lenCZ)
@@ -209,25 +225,90 @@ class MorphTester {
          this.DragPixels();
    }
 
-   DragPixels() {
-      let bb = this.BoundingBox();
-      if (bb.w<1 || bb.h<1) return;
-      let targetData = this.ctx.getImageData(0, 0, this.img.width, this.img.height);
+   SetupWorkers() {
+      console.log("setting up workers");
 
-      for (let y=bb.t; y<=bb.b; y++) {
-         for (let x=bb.l; x<=bb.r; x++) {
-            let tp = {x,y};
-            if (this.IsInside(tp)) {
-               let sp = this.CalcDragPixel(tp);
-               let targetOffset = Math.round(y   *this.img.width*4 + x   *4);
-               let sourceOffset = Math.round(sp.y*this.img.width*4 + sp.x*4);
-               for (let i=0; i<4; i++) {
-                  targetData.data[targetOffset+i] = this.refData.data[sourceOffset+i];
-               }
-            }
+      for (let i = 0; i < this.workers.length; i++) {
+         this.workers[i].terminate();
+         delete this.workers[i];
+      }
+      this.workers = [];
+      for (let i = 0; i < this.workerCt; i++) {
+         let worker = new Worker('worker.js');
+         worker.workerId = i;
+         worker.onmessage = this.HandleWorkerMessage;
+         worker.onmessageerror = this.HandleWorkerErrorMessage;
+         worker.onerror = this.HandleWorkerErrorMessage;
+         this.workers.push(worker);
+      }
+   }
+
+   DragPixels() {
+      this.startTime = Date.now();
+      this.nextRow   = 0;
+      this.linesRendered = 0;
+      let bb = this.BoundingBox();
+      this.targetData = this.ctx.getImageData(0, 0, this.img.width, this.img.height);
+      this.rendering = true;
+
+      for (let i = 0; i < this.workers.length; i++) {
+         let worker = this.workers[i];
+         this.StartWorker(worker, bb, this.nextRow++);
+      }
+   }
+
+   StartWorker(worker, bb, nextRow) {
+      let msg = {
+         workerId : worker.workerId,
+         imgWidth : this.img.width, 
+         imgHeight: this.img.height,
+         rowIdx   : nextRow,
+         bb       : bb,
+         pointA   : this.pointA,
+         pointB   : this.pointB,
+         pointC   : this.pointC,
+         pointD   : this.pointD,
+         pointQ   : this.pointQ,
+         pointZ   : this.pointZ,
+         theta1   : this.theta1,
+         theta2   : this.theta2,
+         theta3   : this.theta3,
+         radC     : this.radC  ,
+         radD     : this.radD  ,
+         lenCZ    : this.lenCZ ,
+         lenDZ    : this.lenDZ
+      };
+      worker.postMessage(msg);
+   }
+   
+   HandleWorkerMessage = (e) => {
+      let data = e.data;
+      let targetRowOffset = (data.bb.t + data.rowIdx) * this.img.width * 4;
+      for (let x=0; x < data.bb.w; x++) {
+         let sourceOffset = data.rowData[x];
+         if (sourceOffset == 0) continue;
+         let targetOffset = targetRowOffset + (data.bb.l + x) * 4;
+
+         for (let i=0; i<4; i++) {
+            this.targetData.data[targetOffset+i] = this.refData.data[sourceOffset+i];
          }
       }
-      this.ctx.putImageData(targetData, 0, 0);
+      this.linesRendered++;
+
+      if (this.nextRow < data.bb.h)
+         return this.StartWorker(e.target, data.bb, this.nextRow++);
+
+      if (this.linesRendered == data.bb.h) {
+         this.ctx.putImageData(this.targetData, 0, 0);
+         this.renderTime = (Date.now() - this.startTime)/1000;
+         this.rendering = false;
+         console.log(`Render time: ${this.renderTime} (${this.workerCt} workers)`);
+      }
+   }
+
+   HandleWorkerErrorMessage = (e) => {
+      this.rendering = false;
+      console.log(`got error messsage from worker ${e.target.workerId}`, e);
    }
 
    DrawImage() {
@@ -479,6 +560,40 @@ class MorphTester {
          `theta3:  ${this.NumStr (this.theta3)}\n` ;
       $("#log2").text(msg);
    }
+
+   Test() {
+      this.pointC  = {x:40, y:500};
+      this.current = {x:700, y:50};
+      this.CalcMetrics();
+      this.isDragging = true;
+      this.Draw();
+      this.isDragging = false;
+      this.UpdateRefData();
+   }
+
+
+   TestU() {
+      console.log("setting up testU workers");
+      let worker = new Worker('testWorker.js');
+      worker.workerId = 99;
+      worker.onmessage = this.HandleTestWorkerMessage;
+      worker.onmessageerror = this.HandleTestWorkerErrorMessage;
+      worker.onerror = this.HandleTestWorkerErrorMessage;
+
+      let msg = {
+         workerId: worker.workerId
+      }
+      worker.postMessage(msg);
+   }
+
+   HandleTestWorkerMessage = (e) => {
+      console.log(`got messsage from test worker ${e.target.workerId}`);
+   }
+
+   HandleTestWorkerErrorMessage = (e) => {
+      console.log(e);
+   }
+   
 }
 
 $(function() {

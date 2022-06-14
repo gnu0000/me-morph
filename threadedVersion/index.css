@@ -1,0 +1,45 @@
+body {
+   border: 0;
+   margin: 0;
+   padding: 1em;
+   font-family: Arial,Helvetica,sans-serif;
+}
+
+#canvas {
+   border: 1px solid blue;
+}
+
+#loc {
+   position: absolute;
+   top: 0;
+   right: 1rem;
+}
+
+#log, #log2 {
+   font-size: 0.9rem;
+   margin-left: 1rem;
+}
+
+#controls {
+   display: flex;
+/*   width: 100%; */
+}
+
+#controls > div:nth-child(1) {
+   flex: 1;
+   border: 1px solid green;
+   padding: 1em;
+}
+
+#controls > div:nth-child(2) {
+   flex: 1;
+   border: 1px solid blue;
+}
+
+input[type="range"] {
+   width: 100%;
+}
+
+.slider p {
+   margin: 8px 5px 3px 5px;
+}

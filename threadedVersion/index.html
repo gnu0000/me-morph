@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset="utf-8">
+      <meta http-equiv="Content-type" content="text/html; charset=UTF-8">
+      <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+      <title>Image Morph</title>
+      <link href="index.css" rel="stylesheet">
+      <script src="/js/jquery.min.js"></script>
+      <script type="module"  src="morph.js"></script>
+   </head>
+   <body>
+      <h2>Image Morph test (using Worker threads)</h2>
+      <p>Use click & drag to morph image, ctrl-z & ctrl-y for undo/redo</p>
+		<canvas id="canvas"></canvas>
+      <p id="loc"></p>
+      <div id="controls">
+         <div>
+            <input type='file' id='fileInput' />
+            <div class="slider">
+               <p>Thin <--> Fat<span></span></p>
+               <input type="range" id="radiusC" min="1" max="50" value=25>
+            </div>
+            <div class="slider">
+               <p>Pointy <--> Rounded<span></span></p>
+               <input type="range" id="radiusD" min="1" max="65" value=33>
+            </div>
+            <input type="checkbox" class="debugmode">Debug mode
+         </div>
+         <div>
+            <div><pre id="log"></pre></div>
+            <div><pre id="log2"></pre></div>
+         </div>
+      </div>
+      </div>
+   </body>
+</html>
+
+
