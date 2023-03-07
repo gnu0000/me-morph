@@ -28,18 +28,28 @@ class MorphTester {
       this.ratio_CZ_C = 4;
       this.ratio_C_D  = 3;
 
-      this.$canvas
-         .mousemove((e) => this.MouseMove(e))
-         .mousedown((e) => this.MouseDown(e))
-         .mouseup  ((e) => this.MouseUp(e));
-      this.$fileInput         .on("change", (e) => this.FileChange(e));
-      $(this.fileReader      ).on("load",   (e) => this.FileLoaded(e));
-      $(this.img             ).on("load",   (e) => this.ImageLoaded(e));
-      $("input[type='range']").on("change", (e) => this.SliderChange(e));
-      $(".debugmode"         ).on("change", (e) => this.SetDebugMode(e));
-      $(window               ).on("keydown",(e) => this.KeyDown(e));
-
+      this.InitEvents();
       this.LoadImage();
+   }
+
+   InitEvents() {
+//      this.$canvas
+//         .mousemove((e) => this.MouseMove(e))
+//         .mousedown((e) => this.MouseDown(e))
+//         .mouseup  ((e) => this.MouseUp(e));
+
+      this.$canvas
+         .on("mousedown touchstart", (e) => this.MouseDown(e))
+         .on("mousemove touchmove" , (e) => this.MouseMove(e))
+         .on("mouseup touchend"    , (e) => this.MouseUp(e));
+
+      this.$fileInput         .on("change" , (e) => this.FileChange(e));
+      $(this.fileReader      ).on("load"   , (e) => this.FileLoaded(e));
+      $(this.img             ).on("load"   , (e) => this.ImageLoaded(e));
+      $("input[type='range']").on("change" , (e) => this.SliderChange(e));
+      $(".debugmode"         ).on("change" , (e) => this.SetDebugMode(e));
+      $(window               ).on("keydown", (e) => this.KeyDown(e));
+
    }
 
    //------------------handlers----------------------------
@@ -393,7 +403,9 @@ class MorphTester {
 
    MousePoint(event) {
       var e = event.originalEvent;
-      return {x: e.x-this.canvas.offsetLeft, y: e.y-this.canvas.offsetTop};
+//      return {x: e.x-this.canvas.offsetLeft, y: e.y-this.canvas.offsetTop};
+//      return {x: e.offsetX-this.canvas.offsetLeft, y: e.offsetY-this.canvas.offsetTop};
+      return {x: e.offsetX, y: e.offsetY};
    }
 
    Distance(point1, point2) {
